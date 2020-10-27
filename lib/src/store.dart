@@ -17,6 +17,9 @@ class Store {
   Pointer<Void> _cStore;
   final ModelDefinition defs;
 
+  // a list of observers of the Store.close() event
+  final Map<dynamic, void Function()> _onBeforeClose;
+
   /// Creates a BoxStore using the model definition from your
   /// `objectbox.g.dart` file.
   ///
@@ -34,7 +37,8 @@ class Store {
   ///
   /// See our examples for more details.
   Store(this.defs,
-      {String directory, int maxDBSizeInKB, int fileMode, int maxReaders}) {
+      {String directory, int maxDBSizeInKB, int fileMode, int maxReaders})
+      : _onBeforeClose = {} {
     var model = Model(defs.model);
 
     var opt = bindings.obx_opt();
@@ -88,10 +92,22 @@ class Store {
 
   /// Closes this store.
   ///
-  /// This method is useful for unit tests; most real applications should open a Store once and keep it open until
-  /// the app dies.
+  /// This method is useful for unit tests; most real applications should open
+  /// a Store once and keep it open until the app dies.
   void close() {
+    // prevent "Concurrent modification during iteration"
+    final listeners = _onBeforeClose.values.toList();
+    listeners.forEach((observer) => observer());
+    _onBeforeClose.clear();
     checkObx(bindings.obx_store_close(_cStore));
+  }
+
+  void addCloseListener(dynamic key, void Function() listener) {
+    _onBeforeClose[key] = listener;
+  }
+
+  void removeCloseListener(dynamic key) {
+    _onBeforeClose.remove(key);
   }
 
   EntityDefinition<T> entityDef<T>() {
